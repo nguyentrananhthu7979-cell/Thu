@@ -331,20 +331,27 @@ function mkPillGroup(id, items, sel, cls) {
   var el = document.getElementById(id); el.innerHTML = '';
   el.appendChild(mkPill('All','__all__',cls,true));
   items.forEach(function(item){ el.appendChild(mkPill(item,item,cls,true)); });
-  el.addEventListener('click', function(e) {
-    var btn = e.target.closest('.pill'); if (!btn) return;
-    var val = btn.dataset.val;
-    var pills = [...el.querySelectorAll('.pill[data-val!="__all__"]')];
-    if (val === '__all__') {
-      var allOn = pills.every(function(p){return p.classList.contains('active');});
-      if (allOn) { sel.clear(); el.querySelectorAll('.pill').forEach(function(p){p.classList.remove('active');}); }
-      else { items.forEach(function(i){sel.add(i);}); el.querySelectorAll('.pill').forEach(function(p){p.classList.add('active');}); }
-    } else {
-      if (sel.has(val)) { sel.delete(val); btn.classList.remove('active'); }
-      else { sel.add(val); btn.classList.add('active'); }
-      el.querySelector('.pill[data-val="__all__"]').classList.toggle('active', pills.every(function(p){return p.classList.contains('active');}));
-    }
-    render();
+  el.querySelectorAll('.pill').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var val = btn.dataset.val;
+      var nonAllPills = Array.prototype.slice.call(el.querySelectorAll('.pill')).filter(function(p){ return p.dataset.val !== '__all__'; });
+      if (val === '__all__') {
+        var allOn = nonAllPills.every(function(p){ return p.classList.contains('active'); });
+        if (allOn) {
+          sel.clear();
+          el.querySelectorAll('.pill').forEach(function(p){ p.classList.remove('active'); });
+        } else {
+          items.forEach(function(i){ sel.add(i); });
+          el.querySelectorAll('.pill').forEach(function(p){ p.classList.add('active'); });
+        }
+      } else {
+        if (sel.has(val)) { sel.delete(val); btn.classList.remove('active'); }
+        else { sel.add(val); btn.classList.add('active'); }
+        var allActive = nonAllPills.every(function(p){ return p.classList.contains('active'); });
+        el.querySelector('.pill[data-val="__all__"]').classList.toggle('active', allActive);
+      }
+      render();
+    });
   });
 }
 function mkPill(label, val, cls, active) {

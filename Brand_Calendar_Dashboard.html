@@ -399,10 +399,12 @@ function render() {
 
   buildLegend('leg-status',fL,fC,fCt); buildLegend('leg-units',fL,fC,fU); buildLegend('leg-rev-status',fL,fC,fR);
 
-  var donut=function(extra){return {responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:Object.assign({legend:{display:false}},extra)};};
-  mkChart('c-status','doughnut',{labels:fL,datasets:[{data:fCt,backgroundColor:fC,borderWidth:0}]},donut({tooltip:{callbacks:{label:function(ctx){var t=ctx.dataset.data.reduce(function(a,b){return a+b;},0);return ' '+ctx.label+': '+ctx.parsed+' ('+(t>0?Math.round(ctx.parsed/t*100):0)+'%)';}}}}}));
-  mkChart('c-units','doughnut',{labels:fL,datasets:[{data:fU,backgroundColor:fC,borderWidth:0}]},donut({tooltip:{callbacks:{label:function(ctx){var t=ctx.dataset.data.reduce(function(a,b){return a+b;},0);return ' '+ctx.label+': '+fmt(ctx.parsed)+' ('+(t>0?Math.round(ctx.parsed/t*100):0)+'%)';}}}}}));
-  mkChart('c-rev-status','doughnut',{labels:fL,datasets:[{data:fR,backgroundColor:fC,borderWidth:0}]},donut({tooltip:{callbacks:{label:function(ctx){var t=ctx.dataset.data.reduce(function(a,b){return a+b;},0);return ' '+ctx.label+': '+fmtR(ctx.parsed)+' ('+(t>0?Math.round(ctx.parsed/t*100):0)+'%)';}}}}}));
+  var donutOpts = {responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){var t=ctx.dataset.data.reduce(function(a,b){return a+b;},0);return ' '+ctx.label+': '+ctx.parsed+' ('+(t>0?Math.round(ctx.parsed/t*100):0)+'%)';}}}}};
+  var donutOptsU = {responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){var t=ctx.dataset.data.reduce(function(a,b){return a+b;},0);return ' '+ctx.label+': '+fmt(ctx.parsed)+' ('+(t>0?Math.round(ctx.parsed/t*100):0)+'%)';}}}}};
+  var donutOptsR = {responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){var t=ctx.dataset.data.reduce(function(a,b){return a+b;},0);return ' '+ctx.label+': '+fmtR(ctx.parsed)+' ('+(t>0?Math.round(ctx.parsed/t*100):0)+'%)';}}}}};
+  mkChart('c-status','doughnut',{labels:fL,datasets:[{data:fCt,backgroundColor:fC,borderWidth:0}]},donutOpts);
+  mkChart('c-units','doughnut',{labels:fL,datasets:[{data:fU,backgroundColor:fC,borderWidth:0}]},donutOptsU);
+  mkChart('c-rev-status','doughnut',{labels:fL,datasets:[{data:fR,backgroundColor:fC,borderWidth:0}]},donutOptsR);
 
   var bC=ALL_BRANDS.map(function(_,i){return BRAND_COLORS[i%BRAND_COLORS.length];});
   var barH=function(fmtFn){return {responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ' '+fmtFn(ctx.parsed.x);}}}},scales:{x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#6b7280',font:{size:11},callback:function(v){return fmtFn(v);}}},y:{grid:{display:false},ticks:{color:'#9897a8',font:{size:12}}}}};};

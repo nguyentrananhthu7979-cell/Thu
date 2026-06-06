@@ -384,10 +384,10 @@ function render() {
   var data = filtered();
   var totalRev = data.reduce(function(s,d){return s+d.Revenue;},0);
   var totalUnits = data.reduce(function(s,d){return s+d.Units;},0);
-  var shipped = data.filter(function(d){return ['SHIPPED ON TIME','SHIPPED LATE'].includes(d.Status);}).length;
-  var onTime  = data.filter(function(d){return ['SHIPPED ON TIME','ON TIME'].includes(d.Status);}).length;
-  var onTimeRate = shipped>0?Math.round(onTime/shipped*100):null;
-
+  var shippedOnTime = data.filter(function(d){return d.Status==='SHIPPED ON TIME';}).length;
+var shippedLate = data.filter(function(d){return d.Status==='SHIPPED LATE';}).length;
+var shipped = shippedOnTime + shippedLate;
+var onTimeRate = shipped>0?Math.round(shippedOnTime/shipped*100):null;
   document.getElementById('m-orders').textContent = data.length;
   document.getElementById('m-units').textContent  = fmt(totalUnits);
   document.getElementById('m-rev').textContent    = fmtR(totalRev);

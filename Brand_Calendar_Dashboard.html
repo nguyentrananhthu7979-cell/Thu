@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brand Calendar — Summary Report</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0f0f11;--surface:#18181c;--surface2:#222228;--border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.13);--text:#f0eff4;--text2:#9897a8;--text3:#5c5b6b;--accent:#6c6cff;--accent2:#a78bfa;--green:#34d399;--amber:#fbbf24;--red:#f87171;--blue:#60a5fa;--purple:#c084fc;--radius:12px;--radius-sm:7px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;min-height:100vh}
+
+/* TOPBAR — no backdrop-filter (causes iframe issues in SharePoint) */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;border-bottom:1px solid var(--border);background:#0f0f11;position:sticky;top:0;z-index:100}
+.logo{font-size:12px;font-weight:600;letter-spacing:.05em;color:var(--text2);text-transform:uppercase}
+.logo span{color:var(--accent2)}
+.topbar-title{font-size:15px;font-weight:500;color:var(--text);margin-left:14px;padding-left:14px;border-left:1px solid var(--border2)}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.status-pill{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0}
+.dot.ok{background:var(--green)}.dot.err{background:var(--red)}.dot.loading{background:var(--amber);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* BUTTONS — large tap targets, no pointer-events issues */
+.btn{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;background:var(--surface2);color:var(--text2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:8px 16px;cursor:pointer;display:inline-block;text-align:center;user-select:none;-webkit-user-select:none}
+.btn:hover,.btn:focus{background:var(--border2);color:var(--text);outline:none}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:#5a5ae0}
+
+/* UPLOAD ZONE — big drag-and-drop area, always visible */
+.upload-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:48px 32px;text-align:center;margin-bottom:24px;cursor:pointer;transition:border-color .15s,background .15s}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:rgba(108,108,255,.06)}
+.upload-zone-icon{font-size:36px;margin-bottom:12px}
+.upload-zone-title{font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px}
+.upload-zone-sub{font-size:13px;color:var(--text3);line-height:1.6}
+.upload-zone-btn{display:inline-block;margin-top:16px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:10px 24px;font-size:14px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif}
+.upload-zone-btn:hover{background:#5a5ae0}
+
+/* OR DIVIDER */
+.or-row{display:flex;align-items:center;gap:12px;margin-bottom:20px;color:var(--text3);font-size:12px}
+.or-row::before,.or-row::after{content:'';flex:1;height:1px;background:var(--border2)}
+
+/* LINK INPUT ROW */
+.link-row{display:flex;gap:10px;margin-bottom:32px}
+.link-input{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:10px 14px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none}
+.link-input:focus{border-color:var(--accent)}
+.link-input::placeholder{color:var(--text3)}
+
+/* PAGE */
+.page{padding:24px 28px 48px;max-width:1400px;margin:0 auto}
+
+/* ERROR / INFO BANNER */
+.banner{border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:20px;font-size:13px;line-height:1.6;display:none}
+.banner.visible{display:block}
+.banner.info{background:rgba(108,108,255,.1);border:1px solid rgba(108,108,255,.25);color:#a5b4fc}
+.banner.err{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:#fca5a5}
+
+/* DASHBOARD */
+#dashboard{display:none}
+.filter-row{display:flex;flex-wrap:wrap;gap:20px;margin-bottom:24px}
+.filter-group{display:flex;flex-direction:column;gap:7px}
+.filter-label{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)}
+.pills{display:flex;flex-wrap:wrap;gap:5px}
+.pill{font-size:12px;padding:4px 11px;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif}
+.pill:hover{border-color:rgba(255,255,255,.25);color:var(--text)}
+.pill.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.pill.active.q{background:#059669;border-color:#059669}
+.pill.active.s{background:#7c3aed;border-color:#7c3aed}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;position:relative;overflow:hidden}
+.metric::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.metric.blue::before{background:var(--blue)}.metric.green::before{background:var(--green)}.metric.amber::before{background:var(--amber)}.metric.purple::before{background:var(--purple)}
+.metric-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px}
+.metric-value{font-size:28px;font-weight:600;line-height:1;color:var(--text);font-family:'DM Mono',monospace}
+.metric-sub{font-size:11px;color:var(--text3);margin-top:6px}
+.charts-top{display:grid;grid-template-columns:1fr 1fr 1.6fr;gap:14px;margin-bottom:14px}
+.charts-bottom{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px}
+.card-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:14px}
+.legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-bottom:12px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
+.legend-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.chart-wrap{position:relative}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:0">
+    <span class="logo">Team <span>A</span></span>
+    <span class="topbar-title">Brand Calendar — Summary Report</span>
+  </div>
+  <div class="topbar-right">
+    <div class="status-pill"><span class="dot" id="dot"></span><span id="status-msg">No data</span></div>
+    <button class="btn primary" onclick="loadFromSharePoint()">↻ Refresh from SharePoint</button>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- UPLOAD SECTION — always visible until data loads -->
+  <div id="upload-section">
+    <div class="banner info visible" id="banner">
+      👋 <strong>Load your data below.</strong> You can upload the Excel file directly, or paste a SharePoint link.
+    </div>
+
+    <!-- Big upload zone -->
+    <div class="upload-zone" id="upload-zone">
+      <div class="upload-zone-icon">📂</div>
+      <div class="upload-zone-title">Drop your Excel file here</div>
+      <div class="upload-zone-sub">Drag &amp; drop <strong>[Team A] Brand Calendar.xlsx</strong> from your OneDrive folder<br>or click the button below to browse</div>
+      <label class="upload-zone-btn" for="file-input">Browse file…</label>
+      <input type="file" id="file-input" accept=".xlsx,.xls" style="position:absolute;opacity:0;width:1px;height:1px">
+    </div>
+
+    <div class="or-row">or paste a SharePoint / OneDrive link</div>
+
+    <div class="link-row">
+      <input class="link-input" id="sp-url" placeholder="https://yourcompany.sharepoint.com/sites/…/file.xlsx  or a share link">
+      <button class="btn primary" onclick="loadFromLink()">Load</button>
+    </div>
+  </div>
+
+  <!-- DASHBOARD — shown after data loads -->
+  <div id="dashboard">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+      <button class="btn" onclick="showUpload()">⬆ Load new file</button>
+    </div>
+    <div class="filter-row">
+      <div class="filter-group"><div class="filter-label">Brand</div><div class="pills" id="brand-pills"></div></div>
+      <div class="filter-group"><div class="filter-label">Quarter</div><div class="pills" id="quarter-pills"></div></div>
+      <div class="filter-group"><div class="filter-label">Stage</div><div class="pills" id="stage-pills"></div></div>
+    </div>
+    <div class="metrics">
+      <div class="metric blue"><div class="metric-label">Total orders</div><div class="metric-value" id="m-orders">—</div></div>
+      <div class="metric green"><div class="metric-label">Total units</div><div class="metric-value" id="m-units">—</div></div>
+      <div class="metric amber"><div class="metric-label">Total revenue</div><div class="metric-value" id="m-rev">—</div></div>
+      <div class="metric purple"><div class="metric-label">On-time rate</div><div class="metric-value" id="m-ontime">—</div><div class="metric-sub" id="m-ontime-sub"></div></div>
+    </div>
+    <div class="charts-top">
+      <div class="card"><div class="card-title">Status — orders</div><div class="legend" id="leg-status"></div><div class="chart-wrap" style="height:180px"><canvas id="c-status"></canvas></div></div>
+      <div class="card"><div class="card-title">Status — units</div><div class="legend" id="leg-units"></div><div class="chart-wrap" style="height:180px"><canvas id="c-units"></canvas></div></div>
+      <div class="card"><div class="card-title">Status — revenue</div><div class="legend" id="leg-rev-status"></div><div class="chart-wrap" style="height:180px"><canvas id="c-rev-status"></canvas></div></div>
+    </div>
+    <div class="charts-bottom">
+      <div class="card"><div class="card-title">Revenue by brand</div><div class="chart-wrap" style="height:220px"><canvas id="c-rev"></canvas></div></div>
+      <div class="card"><div class="card-title">Units by brand</div><div class="chart-wrap" style="height:220px"><canvas id="c-brand-units"></canvas></div></div>
+    </div>
+    <div class="charts-bottom">
+      <div class="card"><div class="card-title">Orders by quarter</div><div class="chart-wrap" style="height:200px"><canvas id="c-quarter"></canvas></div></div>
+      <div class="card"><div class="card-title">Revenue by quarter</div><div class="chart-wrap" style="height:200px"><canvas id="c-quarter-rev"></canvas></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── SHAREPOINT CONFIG ─────────────────────────────────────────
+const SP_SITE      = "https://unavailablevn.sharepoint.com";
+const SP_SITE_PATH = "/sites/COMMERCIAL";
+const SP_FILE_PATH = "/sites/COMMERCIAL/Shared Documents/Team A/Team A Brands/[Team A] Brand Calendar.xlsx";
+
+// ── STATUS HELPERS ────────────────────────────────────────────
+function setStatus(state, msg) {
+  document.getElementById('dot').className = 'dot ' + state;
+  document.getElementById('status-msg').textContent = msg;
+}
+function showBanner(msg, type) {
+  var el = document.getElementById('banner');
+  el.className = 'banner ' + type + ' visible';
+  el.innerHTML = msg;
+}
+function hideBanner() {
+  document.getElementById('banner').className = 'banner';
+}
+
+// ── UPLOAD ZONE ───────────────────────────────────────────────
+function showUpload() {
+  document.getElementById('upload-section').style.display = '';
+  document.getElementById('dashboard').style.display = 'none';
+}
+
+// File input via label click (works in iframes)
+document.getElementById('file-input').addEventListener('change', function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  setStatus('loading', 'Reading file…');
+  var reader = new FileReader();
+  reader.onload = function(ev) { parseExcel(ev.target.result, file.name); };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+});
+
+// Drag and drop
+var zone = document.getElementById('upload-zone');
+zone.addEventListener('dragover', function(e) { e.preventDefault(); zone.classList.add('drag'); });
+zone.addEventListener('dragleave', function() { zone.classList.remove('drag'); });
+zone.addEventListener('drop', function(e) {
+  e.preventDefault(); zone.classList.remove('drag');
+  var file = e.dataTransfer.files[0];
+  if (!file) return;
+  setStatus('loading', 'Reading file…');
+  var reader = new FileReader();
+  reader.onload = function(ev) { parseExcel(ev.target.result, file.name); };
+  reader.readAsArrayBuffer(file);
+});
+
+// ── LOAD FROM LINK INPUT ──────────────────────────────────────
+function loadFromLink() {
+  var url = document.getElementById('sp-url').value.trim();
+  if (!url) { showBanner('Please paste a URL first.', 'err'); return; }
+  fetchUrl(url);
+}
+
+// ── AUTO-FETCH FROM SHAREPOINT (same-origin REST API) ─────────
+function loadFromSharePoint() {
+  setStatus('loading', 'Fetching from SharePoint…');
+  // Use REST API — works when this page is hosted on the same SharePoint site
+  var apiUrl = SP_SITE + SP_SITE_PATH +
+    "/_api/web/GetFileByServerRelativeUrl('" +
+    SP_FILE_PATH.replace(/'/g, "''") + "')/$value";
+  fetch(apiUrl, { credentials: 'include', headers: { 'Accept': 'application/octet-stream' } })
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.arrayBuffer();
+    })
+    .then(function(buf) { parseExcel(buf, 'SharePoint'); })
+    .catch(function(err) {
+      // Fallback: direct file URL
+      fetch(SP_SITE + SP_FILE_PATH, { credentials: 'include' })
+        .then(function(r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.arrayBuffer();
+        })
+        .then(function(buf) { parseExcel(buf, 'SharePoint'); })
+        .catch(function() {
+          setStatus('err', 'Could not auto-load');
+          showBanner('⚠️ Could not auto-load from SharePoint. Please <strong>upload the file manually</strong> using the area below, or paste the file link.', 'err');
+        });
+    });
+}
+
+function fetchUrl(url) {
+  setStatus('loading', 'Fetching…');
+  // Add download param for share links
+  var dlUrl = url;
+  if (url.includes('sharepoint.com') || url.includes('1drv.ms')) {
+    dlUrl = url + (url.includes('?') ? '&' : '?') + 'download=1';
+  }
+  fetch(dlUrl, { credentials: 'include' })
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.arrayBuffer();
+    })
+    .then(function(buf) { parseExcel(buf, 'link'); })
+    .catch(function(err) {
+      setStatus('err', 'Fetch failed');
+      showBanner('⚠️ Could not load from that URL (' + err.message + '). Try uploading the file directly instead.', 'err');
+    });
+}
+
+// ── PARSE EXCEL ───────────────────────────────────────────────
+function parseExcel(buffer, source) {
+  try {
+    var wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+    var sheetName = wb.SheetNames.find(function(n) { return /calendar|cadence/i.test(n); }) || wb.SheetNames[0];
+    var ws = wb.Sheets[sheetName];
+    var raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+
+    var headerRow = -1;
+    for (var i = 0; i < Math.min(20, raw.length); i++) {
+      if (raw[i] && raw[i].some(function(c) { return c === 'Brand'; })) { headerRow = i; break; }
+    }
+    if (headerRow < 0) throw new Error('No "Brand" column found in the sheet');
+
+    var h = raw[headerRow];
+    function col(k) { return h.indexOf(k); }
+    var iB=col('Brand'),iSe=col('Season'),iSt=col('Stage'),iU=col('Units'),iR=col('Revenue'),iQ=col('Quarter'),iSta=col('Status'),iC=col('Collection'),iD=col('Drop');
+
+    RAW = [];
+    for (var j = headerRow + 1; j < raw.length; j++) {
+      var r = raw[j]; if (!r || !r[iB]) continue;
+      var brand = String(r[iB]).trim(); if (!brand || brand === 'null') continue;
+      function clean(v) { return (!v || String(v).trim() === 'null' || String(v).trim() === 'nan') ? 'Unknown' : String(v).trim(); }
+      RAW.push({
+        Brand: brand,
+        Season: r[iSe] ? String(r[iSe]).trim() : '',
+        Collection: r[iC] ? String(r[iC]) : '',
+        Drop: r[iD] ? String(r[iD]) : '',
+        Stage: clean(r[iSt]),
+        Units: parseFloat(r[iU]) || 0,
+        Revenue: parseFloat(r[iR]) || 0,
+        Quarter: clean(r[iQ]),
+        Status: clean(r[iSta])
+      });
+    }
+
+    ALL_BRANDS   = [...new Set(RAW.map(function(d){return d.Brand;}))].sort();
+    ALL_QUARTERS = [...new Set(RAW.map(function(d){return d.Quarter;}))].sort();
+    ALL_STAGES   = [...new Set(RAW.map(function(d){return d.Stage;}))].sort();
+    selBrands = new Set(ALL_BRANDS);
+    selQuarters = new Set(ALL_QUARTERS);
+    selStages = new Set(ALL_STAGES);
+
+    var now = new Date();
+    var ts = now.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) + ' ' + now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    setStatus('ok', (source === 'SharePoint' ? 'Live · ' : 'Uploaded · ') + ts + ' · ' + RAW.length + ' orders');
+
+    document.getElementById('upload-section').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    buildPills();
+    render();
+  } catch(err) {
+    setStatus('err', 'Parse error');
+    showBanner('⚠️ Error reading the file: ' + err.message + '. Make sure it is a valid Excel file with a "Brand" column.', 'err');
+  }
+}
+
+// ── PILLS ─────────────────────────────────────────────────────
+var RAW=[], ALL_BRANDS=[], ALL_QUARTERS=[], ALL_STAGES=[];
+var selBrands=new Set(), selQuarters=new Set(), selStages=new Set();
+var charts={};
+
+function buildPills() {
+  mkPillGroup('brand-pills',   ALL_BRANDS,   selBrands,   '');
+  mkPillGroup('quarter-pills', ALL_QUARTERS, selQuarters, 'q');
+  mkPillGroup('stage-pills',   ALL_STAGES,   selStages,   's');
+}
+function mkPillGroup(id, items, sel, cls) {
+  var el = document.getElementById(id); el.innerHTML = '';
+  el.appendChild(mkPill('All','__all__',cls,true));
+  items.forEach(function(item){ el.appendChild(mkPill(item,item,cls,true)); });
+  el.addEventListener('click', function(e) {
+    var btn = e.target.closest('.pill'); if (!btn) return;
+    var val = btn.dataset.val;
+    var pills = [...el.querySelectorAll('.pill[data-val!="__all__"]')];
+    if (val === '__all__') {
+      var allOn = pills.every(function(p){return p.classList.contains('active');});
+      if (allOn) { sel.clear(); el.querySelectorAll('.pill').forEach(function(p){p.classList.remove('active');}); }
+      else { items.forEach(function(i){sel.add(i);}); el.querySelectorAll('.pill').forEach(function(p){p.classList.add('active');}); }
+    } else {
+      if (sel.has(val)) { sel.delete(val); btn.classList.remove('active'); }
+      else { sel.add(val); btn.classList.add('active'); }
+      el.querySelector('.pill[data-val="__all__"]').classList.toggle('active', pills.every(function(p){return p.classList.contains('active');}));
+    }
+    render();
+  });
+}
+function mkPill(label, val, cls, active) {
+  var b = document.createElement('button');
+  b.className = 'pill ' + cls + (active?' active':'');
+  b.textContent = label; b.dataset.val = val; return b;
+}
+
+// ── RENDER ────────────────────────────────────────────────────
+function filtered() { return RAW.filter(function(d){return selBrands.has(d.Brand)&&selQuarters.has(d.Quarter)&&selStages.has(d.Stage);}); }
+function fmt(n)  { return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':Math.round(n).toString(); }
+function fmtR(n) { return '$'+fmt(n); }
+
+var STATUS_COLORS={'SHIPPED ON TIME':'#34d399','ON TIME':'#60a5fa','SHIPPED LATE':'#fbbf24','LATE':'#f87171','UPCOMING PO':'#9ca3af','Unknown':'#4b5563'};
+var BRAND_COLORS=['#6c6cff','#34d399','#fbbf24','#f87171','#c084fc','#38bdf8','#fb923c','#a3e635'];
+
+function buildLegend(id, labels, colors, values) {
+  var el = document.getElementById(id); if (!el) return;
+  var total = values.reduce(function(a,b){return a+b;},0); el.innerHTML = '';
+  labels.forEach(function(l,i) {
+    if (!values[i]) return;
+    var s = document.createElement('span'); s.className = 'legend-item';
+    var pct = total>0?Math.round(values[i]/total*100):0;
+    s.innerHTML = '<span class="legend-dot" style="background:'+colors[i]+'"></span>'+l+' <b style="color:#fff">'+pct+'%</b>';
+    el.appendChild(s);
+  });
+}
+
+function render() {
+  var data = filtered();
+  var totalRev = data.reduce(function(s,d){return s+d.Revenue;},0);
+  var totalUnits = data.reduce(function(s,d){return s+d.Units;},0);
+  var shipped = data.filter(function(d){return ['SHIPPED ON TIME','SHIPPED LATE'].includes(d.Status);}).length;
+  var onTime  = data.filter(function(d){return ['SHIPPED ON TIME','ON TIME'].includes(d.Status);}).length;
+  var onTimeRate = shipped>0?Math.round(onTime/shipped*100):null;
+
+  document.getElementById('m-orders').textContent = data.length;
+  document.getElementById('m-units').textContent  = fmt(totalUnits);
+  document.getElementById('m-rev').textContent    = fmtR(totalRev);
+  document.getElementById('m-ontime').textContent = onTimeRate!==null?onTimeRate+'%':'—';
+  document.getElementById('m-ontime-sub').textContent = shipped>0?(shipped+' shipped'):'';
+
+  var ST=['SHIPPED ON TIME','ON TIME','SHIPPED LATE','LATE','UPCOMING PO','Unknown'];
+  var SL=['Shipped on time','On time','Shipped late','Late','Upcoming PO','Unknown'];
+  var sC=ST.map(function(s){return STATUS_COLORS[s];});
+  var sCt=ST.map(function(s){return data.filter(function(d){return d.Status===s;}).length;});
+  var sU=ST.map(function(s){return data.filter(function(d){return d.Status===s;}).reduce(function(a,d){return a+d.Units;},0);});
+  var sR=ST.map(function(s){return data.filter(function(d){return d.Status===s;}).reduce(function(a,d){return a+d.Revenue;},0);});
+  var active=ST.map(function(_,i){return sCt[i]>0;});
+  var fL=SL.filter(function(_,i){return active[i];}),fC=sC.filter(function(_,i){return active[i];});
+  var fCt=sCt.filter(function(_,i){return active[i];}),fU=sU.filter(function(_,i){return active[i];}),fR=sR.filter(function(_,i){return active[i];});
+
+  buildLegend('leg-status',fL,fC,fCt); buildLegend('leg-units',fL,fC,fU); buildLegend('leg-rev-status',fL,fC,fR);
+
+  var donut=function(extra){return {responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:Object.assign({legend:{display:false}},extra)};};
+  mkChart('c-status','doughnut',{labels:fL,datasets:[{data:fCt,backgroundColor:fC,borderWidth:0}]},donut({tooltip:{callbacks:{label:function(ctx){var t=ctx.dataset.data.reduce(function(a,b){return a+b;},0);return ' '+ctx.label+': '+ctx.parsed+' ('+(t>0?Math.round(ctx.parsed/t*100):0)+'%)';}}}}}));
+  mkChart('c-units','doughnut',{labels:fL,datasets:[{data:fU,backgroundColor:fC,borderWidth:0}]},donut({tooltip:{callbacks:{label:function(ctx){var t=ctx.dataset.data.reduce(function(a,b){return a+b;},0);return ' '+ctx.label+': '+fmt(ctx.parsed)+' ('+(t>0?Math.round(ctx.parsed/t*100):0)+'%)';}}}}}));
+  mkChart('c-rev-status','doughnut',{labels:fL,datasets:[{data:fR,backgroundColor:fC,borderWidth:0}]},donut({tooltip:{callbacks:{label:function(ctx){var t=ctx.dataset.data.reduce(function(a,b){return a+b;},0);return ' '+ctx.label+': '+fmtR(ctx.parsed)+' ('+(t>0?Math.round(ctx.parsed/t*100):0)+'%)';}}}}}));
+
+  var bC=ALL_BRANDS.map(function(_,i){return BRAND_COLORS[i%BRAND_COLORS.length];});
+  var barH=function(fmtFn){return {responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ' '+fmtFn(ctx.parsed.x);}}}},scales:{x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#6b7280',font:{size:11},callback:function(v){return fmtFn(v);}}},y:{grid:{display:false},ticks:{color:'#9897a8',font:{size:12}}}}};};
+  mkChart('c-rev','bar',{labels:ALL_BRANDS,datasets:[{data:ALL_BRANDS.map(function(b){return data.filter(function(d){return d.Brand===b;}).reduce(function(s,d){return s+d.Revenue;},0);}),backgroundColor:bC,borderRadius:4,borderWidth:0}]},barH(fmtR));
+  mkChart('c-brand-units','bar',{labels:ALL_BRANDS,datasets:[{data:ALL_BRANDS.map(function(b){return data.filter(function(d){return d.Brand===b;}).reduce(function(s,d){return s+d.Units;},0);}),backgroundColor:bC,borderRadius:4,borderWidth:0}]},barH(fmt));
+
+  var QO=['Q1','Q2','Q3','Q4','Unknown'];
+  var QQ=QO.filter(function(q){return ALL_QUARTERS.includes(q);});
+  var barV=function(fmtFn){return {responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ' '+fmtFn(ctx.parsed.y);}}}},scales:{x:{grid:{display:false},ticks:{color:'#9897a8',font:{size:12}}},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#6b7280',font:{size:11},callback:function(v){return fmtFn(v);}}}}};};
+  mkChart('c-quarter','bar',{labels:QQ,datasets:[{data:QQ.map(function(q){return data.filter(function(d){return d.Quarter===q;}).length;}),backgroundColor:'#6c6cff',borderRadius:4,borderWidth:0}]},barV(function(v){return Math.round(v);}));
+  mkChart('c-quarter-rev','bar',{labels:QQ,datasets:[{data:QQ.map(function(q){return data.filter(function(d){return d.Quarter===q;}).reduce(function(s,d){return s+d.Revenue;},0);}),backgroundColor:'#fbbf24',borderRadius:4,borderWidth:0}]},barV(fmtR));
+}
+
+function mkChart(id, type, data, options) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+  var ctx = document.getElementById(id); if (!ctx) return;
+  charts[id] = new Chart(ctx, {type:type,data:data,options:options});
+}
+
+// ── INIT ──────────────────────────────────────────────────────
+// Try SharePoint auto-load; upload zone stays visible as fallback
+loadFromSharePoint();
+</script>
+</body>
+</html>
